@@ -111,12 +111,14 @@ int kub_register_event_listener(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, 
 	li->cmd = cmd;
 	li->sizeOfPayload = sizeOfPayload;
 	li->listener = listener;
-	li->buff = kmalloc(sizeof(*li->buff), GFP_KERNEL);
+	li->buff = kmalloc(sizeof(li->sizeOfPayload), GFP_KERNEL);
 	if (li->buff==NULL) {
 		res = -ENOMEM;
 		kfree(li);
 		goto end;
 	}
+
+	printk("add listener bridge=%d, cmd=%d\n", bridge, cmd);
 
 	HASH_ADD_INT(kub_devices[bridge].listeners, cmd, li);
 
@@ -131,13 +133,18 @@ int kub_get_event_listener(struct kubridge_device *dev, IOCtlCmd cmd, struct kub
 	int res=0;
 	*info = NULL;
 
-	if (down_interruptible(&dev->sem))
-		return -ERESTARTSYS;
+	printk("kub_get_event_listener 1\n");
 
+	//if (down_interruptible(&dev->sem))
+	//	return -ERESTARTSYS;
+
+	printk("kub_get_event_listener 2\n");
+	//printk("should find\n");
 	HASH_FIND_INT(dev->listeners, &cmd, *info);
 
+	printk("kub_get_event_listener 3\n");
 //end:
-	up(&dev->sem);
+	//up(&dev->sem);
 	return res;
 }
 
@@ -163,8 +170,12 @@ int kub_send_event(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload
 	struct kub_event_send_pkt *pkt = NULL;
 	int res = 0;
 
-	if (down_interruptible(&kub_devices[bridge].sem))
-			return -ERESTARTSYS;
+	printk("kub_send_event 1\n");
+
+	//if (down_interruptible(&kub_devices[bridge].sem))
+	//		return -ERESTARTSYS;
+
+	printk("kub_send_event 2\n");
 
 	HASH_FIND_INT(kub_devices[bridge].sends, &cmd, sd);
 	if (sd==NULL)
@@ -180,16 +191,23 @@ int kub_send_event(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload
 		HASH_ADD_INT(kub_devices[bridge].sends, cmd, sd);
 	}
 
+	printk("kub_send_event 3\n");
+
 	pkt = kmalloc(sizeof(*pkt), GFP_KERNEL);
 	if (!pkt) {
 		res = -ENOMEM;
 		goto end;
 	}
 
+	pkt->sizeOfPayload = sizeOfPayload;
+	pkt->payload = payload;
+
+	printk("kub_send_event 4\n");
+
 	list_add_tail(&pkt->list, &sd->packets);
 
 end:
-	up(&kub_devices[bridge].sem);
+	//up(&kub_devices[bridge].sem);
 	return res;
 }
 EXPORT_SYMBOL(kub_send_event);
@@ -200,8 +218,8 @@ int kub_pop_send_event(struct kubridge_device *dev, IOCtlCmd cmd, struct kub_eve
 	int res = 0;
 	*pkt = NULL;
 
-	if (down_interruptible(&dev->sem))
-			return -ERESTARTSYS;
+	//if (down_interruptible(&dev->sem))
+	//		return -ERESTARTSYS;
 
 	HASH_FIND_INT(dev->sends, &cmd, sd);
 	if (sd==NULL)		// no entry
@@ -214,7 +232,7 @@ int kub_pop_send_event(struct kubridge_device *dev, IOCtlCmd cmd, struct kub_eve
 	list_del(&(*pkt)->list);
 
 end:
-	up(&dev->sem);
+	//up(&dev->sem);
 	return res;	
 }
 
@@ -298,32 +316,36 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 	struct kub_event_listener_info *li = NULL;
 	struct kub_event_send_pkt *pkt = NULL;
 
-	int len = 200;
+	int len = 0;
 	if (down_interruptible (&dev->sem))
 		return -ERESTARTSYS;
 
 	if (cmd & IOC_IN)
 	{
+		printk("IOC_IN\n");
 		// in, read from user
 		kub_get_event_listener(dev, cmd, &li);
 		if (li)
 		{
 			copy_from_user(li->buff, (char*)arg, li->sizeOfPayload);
+			len = li->sizeOfPayload;
 			li->listener((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd, li->sizeOfPayload, li->buff);
 		}
 		else
 		{
-			printk("No listener\n");
+			printk("No listener (bridge=%d, cmd=%d)\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd);
 		}
 	}
 
 	if (cmd & IOC_OUT)
 	{
+		printk("IOC_OUT\n");
 		kub_pop_send_event(dev, cmd, &pkt);
 		if (pkt)
 		{
 			// out, copy to user
 			copy_to_user((char*)arg, pkt->payload, pkt->sizeOfPayload);
+			len = pkt->sizeOfPayload;
 			if (pkt->complete)
 				pkt->complete((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd, pkt->sizeOfPayload, pkt->payload);
 
@@ -331,10 +353,15 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 		}
 		else
 		{
-			printk("No packet\n");
+			printk("No packet (bridge=%d, cmd=%d)\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd);
 		}
 	}
 
+	printk("device_ioctl\n");
+	up(&dev->sem);
+	
+	return len;
+	/*
 	
 	switch(cmd) {
 	case READ_IOCTL:	
@@ -348,8 +375,8 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 		return -ENOTTY;
 	}
 
-	up(&dev->sem);
-	return len;
+	
+	return len;*/
 
 }
 

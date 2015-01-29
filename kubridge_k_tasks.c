@@ -39,15 +39,16 @@ void task_event_complete(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *p
 void task_event_handler(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload)
 {
 	data = *(struct task_test_str*)payload;
-	printk("task_event_complete (%d,%d)\n", data.i, data.k);
+	printk("task_event_handler (%d,%d)\n", data.i, data.k);
 	data.i++;
 	data.k++;
-	kub_send_event(0, WRITE_IOCTL, sizeof(struct task_test_str), &data, task_event_complete);
+	kub_send_event(3, READ_IOCTL, sizeof(struct task_test_str), &data, task_event_complete);
+	printk("task_event_handler done\n");
 }
 
 static int __init kubridge_tasks_init(void)
 {
-	kub_register_event_listener(3, READ_IOCTL, sizeof(struct task_test_str), task_event_handler);
+	kub_register_event_listener(3, WRITE_IOCTL, sizeof(struct task_test_str), task_event_handler);
 	return 0;
 }
 

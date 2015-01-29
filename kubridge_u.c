@@ -49,6 +49,7 @@ int main(){
 			perror("first ioctl");
 
 		printf("data i=%d, k=%d\n", d.i, d.k);
+		sleep(1);
 
 		if(ioctl(fd, READ_IOCTL, &d) < 0)
 			perror("second ioctl");
