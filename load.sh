@@ -8,6 +8,7 @@ mode="664"
 # and use a pathname, as newer modutils don't look in . by default
 #insmod ./$module.ko $* || exit 1
 insmod ./$module.ko major=299 minor=7 num_devs=4 || exit 1
+insmod ./kubridge_k_tasks.ko
 
 # remove stale nodes
 rm -f /dev/${device}[0-3]

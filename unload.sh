@@ -4,4 +4,4 @@ device="kubridge"
 
 rm -f /dev/${device}[0-3]
 rmmod ./$module.ko
-
+rmmod ./kubridge_k_tasks.ko

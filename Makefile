@@ -5,12 +5,12 @@ SOURCES=kubridge_u.c
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=kubridge_u
 
-obj-m += kubridge_k.o
+obj-m += kubridge_k.o kubridge_k_tasks.o
 
 all: user kernel
 
 kernel:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) CFLAGS=-D__KERNEL__=1 modules
 
 user: $(SOURCES) $(EXECUTABLE)
 

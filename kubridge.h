@@ -20,10 +20,23 @@
 #ifndef _KUBRIDGE_H_
 #define _KUBRIDGE_H_
 
-#define MY_MACIG		((unsigned char)0x73)
-#define READ_IOCTL	_IOR(MY_MACIG, 0, int)
-#define WRITE_IOCTL	_IOW(MY_MACIG, 1, int)
-#define DEV_NAME		"kubridge"
+#define KUB_MACIG					((unsigned char)0x73)
+#define KUB_NUM_OF_BRIDGES		(1)
+#define READ_IOCTL				_IOR(KUB_MACIG, 0, int)
+#define WRITE_IOCTL				_IOW(KUB_MACIG, 1, int)
+#define DEV_NAME					"kubridge"
+typedef int IOCtlCmd;
+
+#if __KERNEL__
+
+typedef void (*kub_event_handler)(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload);
+
+int kub_register_event_listener(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, kub_event_handler listener);
+int kub_send_event(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload, kub_event_handler complete);
+
+#else
+
+#endif
 
 #endif
 

@@ -23,14 +23,38 @@
 
 #include "kubridge.h"
 
+struct task_test_str
+{
+	int i;
+	int k;
+};
+
 int main(){
-	char buf[200];
+	//char buf[200];
 	int fd = -1;
+	int i;
+
 	if ((fd = open("/dev/" DEV_NAME "3", O_RDWR)) < 0) {
 		perror("open");
 		return -1;
 	}
 
+	struct task_test_str d;
+	d.i = 0;
+	d.k = 1;
+
+	for (i=0; i<10; i++)
+	{
+		if(ioctl(fd, WRITE_IOCTL, &d) < 0)
+			perror("first ioctl");
+
+		printf("data i=%d, k=%d\n", d.i, d.k);
+
+		if(ioctl(fd, READ_IOCTL, &d) < 0)
+			perror("second ioctl");
+	}
+
+	/*
 	if(ioctl(fd, WRITE_IOCTL, "hello world") < 0)
 		perror("first ioctl");
 
@@ -38,6 +62,7 @@ int main(){
 		perror("second ioctl");
 
 	printf("message: %s\n", buf);
+	*/
 	return 0;
 }
 
