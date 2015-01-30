@@ -70,7 +70,7 @@ struct kub_event_send_info
 struct kubridge_device {
 	struct cdev cdev;
 	struct semaphore sem;
-	//wait_queue_head_t inq, outq;       /* read and write queues */
+	wait_queue_head_t in_q, out_q;       /* read and write queues */
 	struct kub_event_listener_info *listeners;
 	struct kub_event_send_info *sends;
 };
@@ -220,9 +220,53 @@ int kub_pop_send_event(struct kubridge_device *dev, IOCtlCmd cmd, struct kub_eve
 	*pkt = list_entry(sd->packets.next, struct kub_event_send_pkt, list);
 	list_del(&(*pkt)->list);
 
+	if (list_empty(&sd->packets))		// all don't, clean
+		HASH_DEL(dev->sends, sd); 
+
 end:
 	up(&dev->sem);
 	return res;	
+}
+
+int kub_check_send_events(struct kubridge_device *dev)
+{
+	//struct kub_event_send_info *sd = NULL, *tmp;
+	int size=0;
+
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
+
+	size = HASH_COUNT(dev->sends);
+
+	/*HASH_ITER(hh, dev->sends, sd, tmp) {
+		if (!list_empty(&sd->packets)) {
+			up(&dev->sem);
+			return 1;
+		}
+	}*/
+
+	up(&dev->sem);
+	return size;
+}
+
+int kub_fill_send_events(struct kubridge_device *dev, IOCtlCmd *cmds, int cntOfCmds)
+{
+	struct kub_event_send_info *sd = NULL, *tmp;
+	int i=0;
+	
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
+
+	HASH_ITER(hh, dev->sends, sd, tmp) {
+		if (!list_empty(&sd->packets)) {
+			cmds[i] = sd->cmd;
+			i++;
+			if (i>=cntOfCmds) break;
+		}
+	}
+
+	up(&dev->sem);
+	return 0;
 }
 
 void kub_release_send_events(struct kubridge_device *dev)
@@ -296,8 +340,9 @@ static ssize_t device_write(struct file *filp, const char __user *buff, size_t l
 	msg[len] = '\0';
 	return len;
 }
+#endif
 
-static unsigned int device_poll(struct file *filep, poll_table *waitTb)
+static unsigned int device_poll(struct file *filep, poll_table *wait_tb)
 {
     struct kubridge_device *dev = filep->private_data;
     unsigned int mask = 0;
@@ -307,19 +352,19 @@ static unsigned int device_poll(struct file *filep, poll_table *waitTb)
      * if "wp" is right behind "rp" and empty if the
      * two are equal.
      */
-    down(&dev->sem);
+    //down(&dev->sem);
     
-    poll_wait(filep, &dev->inq,  waitTb);
-    poll_wait(filep, &dev->outq, waitTb);
-    //if (dev->rp != dev->wp)
+    poll_wait(filep, &dev->in_q,  wait_tb);
+    poll_wait(filep, &dev->out_q, wait_tb);
+    if (kub_check_send_events(dev) > 0)
         mask |= POLLIN | POLLRDNORM;    /* readable */
     //if (spacefree(dev))
         mask |= POLLOUT | POLLWRNORM;   /* writable */
 
-    up(&dev->sem);
+    //up(&dev->sem);
     return mask;
 }
-#endif
+
 
 //char buf[200];
 static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
@@ -337,36 +382,65 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 
 	if (cmd & IOC_IN)
 	{
-		// in, read from user
-		kub_get_event_listener(dev, cmd, &li);
-		if (li)
 		{
-			copy_from_user(li->buff, (char*)arg, li->sizeOfPayload);
-			len = li->sizeOfPayload;
-			li->listener((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd/*, li->sizeOfPayload*/, li->buff);
-		}
-		else
-		{
-			printk("No listener (bridge=%d, cmd=%d)\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd);
+			// in, read from user
+			kub_get_event_listener(dev, cmd, &li);
+			if (li)
+			{
+				copy_from_user(li->buff, (char*)arg, li->sizeOfPayload);
+				len = li->sizeOfPayload;
+				li->listener((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd/*, li->sizeOfPayload*/, li->buff);
+			}
+			else
+			{
+				printk("No listener (bridge=%d, cmd=%d)\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd);
+			}
 		}
 	}
 
 	if (cmd & IOC_OUT)
 	{
-		kub_pop_send_event(dev, cmd, &pkt);
-		if (pkt)
+		// check reserved first
+		if (_IOC_NR(cmd)==_IOC_NR(IOC_READ_CMD_INFO))
 		{
-			// out, copy to user
-			copy_to_user((char*)arg, pkt->payload, pkt->sizeOfPayload);
-			len = pkt->sizeOfPayload;
-			if (pkt->complete)
-				pkt->complete((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd/*, pkt->sizeOfPayload*/, pkt->payload);
-
-			kfree(pkt);
+			if (_IOC_SIZE(cmd)==4)
+			{
+				int s = kub_check_send_events(dev);
+				put_user(s, (char*)arg);
+				len = 4;
+			}
+		}
+		else if (_IOC_NR(cmd)==_IOC_NR(IOC_READ_CMDS))
+		{
+			IOCtlCmd *cmds = NULL;
+			len = _IOC_SIZE(cmd);
+			cmds = kmalloc(len, GFP_KERNEL);
+			if (cmds)
+			{
+				memset(cmds, 0, len);
+				kub_fill_send_events(dev, cmds, len/sizeof(IOCtlCmd));
+				kfree(cmds);
+			}
+			else
+				return -ENOMEM;
 		}
 		else
 		{
-			printk("No packet (bridge=%d, cmd=%d)\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd);
+			kub_pop_send_event(dev, cmd, &pkt);
+			if (pkt)
+			{
+				// out, copy to user
+				copy_to_user((char*)arg, pkt->payload, pkt->sizeOfPayload);
+				len = pkt->sizeOfPayload;
+				if (pkt->complete)
+					pkt->complete((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd/*, pkt->sizeOfPayload*/, pkt->payload);
+
+				kfree(pkt);
+			}
+			else
+			{
+				printk("No packet (bridge=%d, cmd=%d)\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd);
+			}
 		}
 	}
 
@@ -382,7 +456,7 @@ static struct file_operations fops = {
 	//.read = device_read, 
 	//.write = device_write,
 	.unlocked_ioctl = device_ioctl,
-	//.poll = device_poll,
+	.poll = device_poll,
 };
 
 static inline int setup_cdev(struct kubridge_device *dev, int index)
@@ -431,8 +505,8 @@ static int __init kubridge_init(void)
 	for (i=0; i<num_devs && res==0; i++)
 	{
 		sema_init(&kub_devices[i].sem, 1);
-		//init_waitqueue_head(&kub_devices[i].inq);
-		//init_waitqueue_head(&kub_devices[i].outq);
+		init_waitqueue_head(&kub_devices[i].in_q);
+		init_waitqueue_head(&kub_devices[i].out_q);
 		kub_devices[i].listeners = NULL;
 		kub_devices[i].sends = NULL;
 		res = setup_cdev(kub_devices+i, i);

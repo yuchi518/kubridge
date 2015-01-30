@@ -20,18 +20,25 @@
 #ifndef _KUBRIDGE_H_
 #define _KUBRIDGE_H_
 
+#ifndef KUB_MACIG					// You can change it in your makefile.
 #define KUB_MACIG					((unsigned char)0xC9)
+#endif
 #define KUB_NUM_OF_BRIDGES		(1)
+#define DEV_NAME					"kubridge"
+typedef unsigned int IOCtlCmd;		// 8bits: type, 8bits: number, 13bits: size, 3bits:dir
 
+// Reserved cmds in all bridges(devices).
+#define IOC_READ_CMD_INFO		_IOR(KUB_MACIG, 0, int)		// int is not the only type 
+#define IOC_READ_CMDS			_IOR(KUB_MACIG, 1, int)		// int is not the only type
+
+/// === testing purpose
 struct kub_test_str {
 	int i, k;
 };
 
-//#define IOC_REG_INT				_IOW(KUB_MACIG, 0, int)		// INT mode, not implement
-#define READ_IOCTL				_IOR(KUB_MACIG, 1, struct kub_test_str)
-#define WRITE_IOCTL				_IOW(KUB_MACIG, 2, struct kub_test_str)
-#define DEV_NAME					"kubridge"
-typedef unsigned int IOCtlCmd;		// 8bits: magic, 8bits: type, 13bits: szie, 3bits:dir
+#define READ_IOCTL				_IOR(KUB_MACIG, 2, struct kub_test_str)
+#define WRITE_IOCTL				_IOW(KUB_MACIG, 3, struct kub_test_str)
+/// === testing purpose end
 
 #if __KERNEL__
 
