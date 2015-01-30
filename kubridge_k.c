@@ -118,7 +118,7 @@ int kub_register_event_listener(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, 
 		goto end;
 	}
 
-	printk("add listener bridge=%d, cmd=%d\n", bridge, cmd);
+	//printk("add listener bridge=%d, cmd=%d\n", bridge, cmd);
 
 	HASH_ADD_INT(kub_devices[bridge].listeners, cmd, li);
 
@@ -133,18 +133,12 @@ int kub_get_event_listener(struct kubridge_device *dev, IOCtlCmd cmd, struct kub
 	int res=0;
 	*info = NULL;
 
-	printk("kub_get_event_listener 1\n");
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
 
-	//if (down_interruptible(&dev->sem))
-	//	return -ERESTARTSYS;
-
-	printk("kub_get_event_listener 2\n");
-	//printk("should find\n");
 	HASH_FIND_INT(dev->listeners, &cmd, *info);
-
-	printk("kub_get_event_listener 3\n");
 //end:
-	//up(&dev->sem);
+	up(&dev->sem);
 	return res;
 }
 
@@ -170,12 +164,8 @@ int kub_send_event(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload
 	struct kub_event_send_pkt *pkt = NULL;
 	int res = 0;
 
-	printk("kub_send_event 1\n");
-
-	//if (down_interruptible(&kub_devices[bridge].sem))
-	//		return -ERESTARTSYS;
-
-	printk("kub_send_event 2\n");
+	if (down_interruptible(&kub_devices[bridge].sem))
+		return -ERESTARTSYS;
 
 	HASH_FIND_INT(kub_devices[bridge].sends, &cmd, sd);
 	if (sd==NULL)
@@ -191,8 +181,6 @@ int kub_send_event(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload
 		HASH_ADD_INT(kub_devices[bridge].sends, cmd, sd);
 	}
 
-	printk("kub_send_event 3\n");
-
 	pkt = kmalloc(sizeof(*pkt), GFP_KERNEL);
 	if (!pkt) {
 		res = -ENOMEM;
@@ -201,13 +189,12 @@ int kub_send_event(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload
 
 	pkt->sizeOfPayload = sizeOfPayload;
 	pkt->payload = payload;
-
-	printk("kub_send_event 4\n");
+	pkt->complete = complete;
 
 	list_add_tail(&pkt->list, &sd->packets);
 
 end:
-	//up(&kub_devices[bridge].sem);
+	up(&kub_devices[bridge].sem);
 	return res;
 }
 EXPORT_SYMBOL(kub_send_event);
@@ -218,8 +205,8 @@ int kub_pop_send_event(struct kubridge_device *dev, IOCtlCmd cmd, struct kub_eve
 	int res = 0;
 	*pkt = NULL;
 
-	//if (down_interruptible(&dev->sem))
-	//		return -ERESTARTSYS;
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
 
 	HASH_FIND_INT(dev->sends, &cmd, sd);
 	if (sd==NULL)		// no entry
@@ -232,7 +219,7 @@ int kub_pop_send_event(struct kubridge_device *dev, IOCtlCmd cmd, struct kub_eve
 	list_del(&(*pkt)->list);
 
 end:
-	//up(&dev->sem);
+	up(&dev->sem);
 	return res;	
 }
 
@@ -257,7 +244,7 @@ void kub_release_send_events(struct kubridge_device *dev)
    	kfree(sd);            /* optional- if you want to free  */
 	}
 
-	up(&dev->sem);
+	//up(&dev->sem);
 	//return 0;	
 }
 
@@ -272,10 +259,10 @@ static int device_open(struct inode *inode, struct file *filp)
 
     	/* now trim to 0 the length of the device if open was write-only */
 	if ( (filp->f_flags & O_ACCMODE) == O_WRONLY) {
-		if (down_interruptible(&dev->sem))
-			return -ERESTARTSYS;
+		//if (down_interruptible(&dev->sem))
+		//	return -ERESTARTSYS;
 		//scullc_trim(dev); /* ignore errors */
-		up(&dev->sem);
+		//up(&dev->sem);
 	}
 
 	/* and use filp->private_data to point to the device data */
@@ -309,7 +296,7 @@ static ssize_t device_write(struct file *filp, const char __user *buff, size_t l
 }
 #endif
 
-char buf[200];
+//char buf[200];
 static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 {
 	struct kubridge_device *dev = filep->private_data;
@@ -317,12 +304,11 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 	struct kub_event_send_pkt *pkt = NULL;
 
 	int len = 0;
-	if (down_interruptible (&dev->sem))
-		return -ERESTARTSYS;
+	//if (down_interruptible (&dev->sem))
+	//	return 0;
 
 	if (cmd & IOC_IN)
 	{
-		printk("IOC_IN\n");
 		// in, read from user
 		kub_get_event_listener(dev, cmd, &li);
 		if (li)
@@ -339,7 +325,6 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 
 	if (cmd & IOC_OUT)
 	{
-		printk("IOC_OUT\n");
 		kub_pop_send_event(dev, cmd, &pkt);
 		if (pkt)
 		{
@@ -357,27 +342,9 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 		}
 	}
 
-	printk("device_ioctl\n");
-	up(&dev->sem);
+	//up(&dev->sem);
 	
 	return len;
-	/*
-	
-	switch(cmd) {
-	case READ_IOCTL:	
-		copy_to_user((char *)arg, buf, 200);
-		break;
-	case WRITE_IOCTL:
-		copy_from_user(buf, (char *)arg, len);
-		break;
-	default:
-		up(&dev->sem);
-		return -ENOTTY;
-	}
-
-	
-	return len;*/
-
 }
 
 static struct file_operations fops = {

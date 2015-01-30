@@ -29,7 +29,8 @@ struct task_test_str
 	int k;
 };
 
-int main(){
+int main()
+{
 	//char buf[200];
 	int fd = -1;
 	int i;
@@ -49,21 +50,12 @@ int main(){
 			perror("first ioctl");
 
 		printf("data i=%d, k=%d\n", d.i, d.k);
-		sleep(1);
+		//sleep(1);
 
 		if(ioctl(fd, READ_IOCTL, &d) < 0)
 			perror("second ioctl");
 	}
 
-	/*
-	if(ioctl(fd, WRITE_IOCTL, "hello world") < 0)
-		perror("first ioctl");
-
-	if(ioctl(fd, READ_IOCTL, buf) < 0)
-		perror("second ioctl");
-
-	printf("message: %s\n", buf);
-	*/
 	return 0;
 }
 
