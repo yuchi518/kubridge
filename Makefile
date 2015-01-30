@@ -5,7 +5,7 @@ SOURCES=kubridge_u.c
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=kubridge_u
 
-obj-m += kubridge_k.o kubridge_k_tasks.o
+obj-m += kubridge_k.o kubridge_k_tasks0.o kubridge_k_tasks1.o kubridge_k_tasks2.o kubridge_k_tasks3.o
 
 all: user kernel
 
@@ -15,7 +15,7 @@ kernel:
 user: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS) 
-	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+	$(CC) $(LDFLAGS) $(OBJECTS) -pthread -o $@
 
 .cpp.o:
 	$(CC) $(CFLAGS) $< -o $@
