@@ -25,32 +25,26 @@
 
 #define BRIDGE_IDX		(2)
 
-struct task_test_str
-{
-	int i;
-	int k;
-};
+struct kub_test_str data;
 
-struct task_test_str data;
-
-void task_event_complete(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload)
+void task_event_complete(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload)
 {
 	printk("[task%d] task_event_complete\n", BRIDGE_IDX);
 }
 
-void task_event_handler(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload)
+void task_event_handler(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload)
 {
-	data = *(struct task_test_str*)payload;
+	data = *(struct kub_test_str*)payload;
 	printk("[task%d] task_event_handler (%d,%d)\n", data.i, data.k, BRIDGE_IDX);
 	data.i++;
 	data.k++;
-	kub_send_event(BRIDGE_IDX, READ_IOCTL, sizeof(struct task_test_str), &data, task_event_complete);
+	kub_send_event(BRIDGE_IDX, READ_IOCTL/*, sizeof(struct kub_test_str)*/, &data, task_event_complete);
 	printk("[task%d] task_event_handler done\n", BRIDGE_IDX);
 }
 
 static int __init kubridge_tasks_init(void)
 {
-	kub_register_event_listener(BRIDGE_IDX, WRITE_IOCTL, sizeof(struct task_test_str), task_event_handler);
+	kub_register_event_listener(BRIDGE_IDX, WRITE_IOCTL/*, sizeof(struct kub_test_str)*/, task_event_handler);
 	return 0;
 }
 

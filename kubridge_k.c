@@ -25,6 +25,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/proc_fs.h>
+#include <linux/poll.h>
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/semaphore.h> /* sem */
 #include <linux/types.h>	/* size_t */
@@ -69,6 +70,7 @@ struct kub_event_send_info
 struct kubridge_device {
 	struct cdev cdev;
 	struct semaphore sem;
+	//wait_queue_head_t inq, outq;       /* read and write queues */
 	struct kub_event_listener_info *listeners;
 	struct kub_event_send_info *sends;
 };
@@ -82,7 +84,7 @@ module_param(minor, int, 0);
 module_param(num_devs, int, S_IRUGO);
 
 /// ===================== 
-int kub_register_event_listener(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, kub_event_handler listener)
+int kub_register_event_listener(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, kub_event_handler listener)
 {
 	struct kub_event_listener_info *li=NULL;
 	int res = 0;
@@ -109,7 +111,7 @@ int kub_register_event_listener(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, 
 	}
 
 	li->cmd = cmd;
-	li->sizeOfPayload = sizeOfPayload;
+	li->sizeOfPayload = _IOC_SIZE(cmd);//sizeOfPayload;
 	li->listener = listener;
 	li->buff = kmalloc(sizeof(li->sizeOfPayload), GFP_KERNEL);
 	if (li->buff==NULL) {
@@ -158,7 +160,7 @@ void kub_release_event_listeners(struct kubridge_device *dev)
 	//return 0;
 }
 
-int kub_send_event(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload, kub_event_handler complete)
+int kub_send_event(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload, kub_event_handler complete)
 {
 	struct kub_event_send_info *sd = NULL;
 	struct kub_event_send_pkt *pkt = NULL;
@@ -187,7 +189,7 @@ int kub_send_event(int bridge, IOCtlCmd cmd, size_t sizeOfPayload, void *payload
 		goto end;
 	}
 
-	pkt->sizeOfPayload = sizeOfPayload;
+	pkt->sizeOfPayload = _IOC_SIZE(cmd); //sizeOfPayload;
 	pkt->payload = payload;
 	pkt->complete = complete;
 
@@ -294,6 +296,29 @@ static ssize_t device_write(struct file *filp, const char __user *buff, size_t l
 	msg[len] = '\0';
 	return len;
 }
+
+static unsigned int device_poll(struct file *filep, poll_table *waitTb)
+{
+    struct kubridge_device *dev = filep->private_data;
+    unsigned int mask = 0;
+
+    /*
+     * The buffer is circular; it is considered full
+     * if "wp" is right behind "rp" and empty if the
+     * two are equal.
+     */
+    down(&dev->sem);
+    
+    poll_wait(filep, &dev->inq,  waitTb);
+    poll_wait(filep, &dev->outq, waitTb);
+    //if (dev->rp != dev->wp)
+        mask |= POLLIN | POLLRDNORM;    /* readable */
+    //if (spacefree(dev))
+        mask |= POLLOUT | POLLWRNORM;   /* writable */
+
+    up(&dev->sem);
+    return mask;
+}
 #endif
 
 //char buf[200];
@@ -304,6 +329,9 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 	struct kub_event_send_pkt *pkt = NULL;
 
 	int len = 0;
+
+	if (_IOC_TYPE(cmd) != KUB_MACIG) return -ENOTTY;
+
 	//if (down_interruptible (&dev->sem))
 	//	return 0;
 
@@ -315,7 +343,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 		{
 			copy_from_user(li->buff, (char*)arg, li->sizeOfPayload);
 			len = li->sizeOfPayload;
-			li->listener((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd, li->sizeOfPayload, li->buff);
+			li->listener((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd/*, li->sizeOfPayload*/, li->buff);
 		}
 		else
 		{
@@ -332,7 +360,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 			copy_to_user((char*)arg, pkt->payload, pkt->sizeOfPayload);
 			len = pkt->sizeOfPayload;
 			if (pkt->complete)
-				pkt->complete((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd, pkt->sizeOfPayload, pkt->payload);
+				pkt->complete((int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), cmd/*, pkt->sizeOfPayload*/, pkt->payload);
 
 			kfree(pkt);
 		}
@@ -354,6 +382,7 @@ static struct file_operations fops = {
 	//.read = device_read, 
 	//.write = device_write,
 	.unlocked_ioctl = device_ioctl,
+	//.poll = device_poll,
 };
 
 static inline int setup_cdev(struct kubridge_device *dev, int index)
@@ -402,6 +431,8 @@ static int __init kubridge_init(void)
 	for (i=0; i<num_devs && res==0; i++)
 	{
 		sema_init(&kub_devices[i].sem, 1);
+		//init_waitqueue_head(&kub_devices[i].inq);
+		//init_waitqueue_head(&kub_devices[i].outq);
 		kub_devices[i].listeners = NULL;
 		kub_devices[i].sends = NULL;
 		res = setup_cdev(kub_devices+i, i);

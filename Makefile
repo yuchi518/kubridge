@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=
 LDFLAGS=
-SOURCES=kubridge_u.c
+SOURCES=kubridge_u.c kubridge_u_tasks.c
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=kubridge_u
 
