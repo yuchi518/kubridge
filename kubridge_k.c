@@ -26,15 +26,16 @@
 #include <linux/moduleparam.h>
 #include <linux/proc_fs.h>
 #include <linux/poll.h>
+#include <linux/sched.h>
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/semaphore.h> /* sem */
 #include <linux/types.h>	/* size_t */
 #include <linux/version.h>
-#include <linux/list.h>
 #include <asm/uaccess.h>
 
 #include "kubridge.h"
 #include "uthash.h"
+#include "list.h"
 
 // read
 struct kub_event_listener_info
@@ -70,7 +71,7 @@ struct kub_event_send_info
 struct kubridge_device {
 	struct cdev cdev;
 	struct semaphore sem;
-	wait_queue_head_t in_q, out_q;       /* read and write queues */
+	wait_queue_head_t in_q/*, out_q*/;       /* read and write queues in user viewpoint */
 	struct kub_event_listener_info *listeners;
 	struct kub_event_send_info *sends;
 };
@@ -195,6 +196,9 @@ int kub_send_event(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *pay
 
 	list_add_tail(&pkt->list, &sd->packets);
 
+	wake_up(&kub_devices[bridge].in_q);
+	//wake_up_interruptible(&dev->in_q);
+
 end:
 	up(&kub_devices[bridge].sem);
 	return res;
@@ -221,7 +225,7 @@ int kub_pop_send_event(struct kubridge_device *dev, IOCtlCmd cmd, struct kub_eve
 	list_del(&(*pkt)->list);
 
 	if (list_empty(&sd->packets))		// all don't, clean
-		HASH_DEL(dev->sends, sd); 
+		HASH_DEL(dev->sends, sd);
 
 end:
 	up(&dev->sem);
@@ -355,7 +359,7 @@ static unsigned int device_poll(struct file *filep, poll_table *wait_tb)
     //down(&dev->sem);
     
     poll_wait(filep, &dev->in_q,  wait_tb);
-    poll_wait(filep, &dev->out_q, wait_tb);
+    //poll_wait(filep, &dev->out_q, wait_tb);
     if (kub_check_send_events(dev) > 0)
         mask |= POLLIN | POLLRDNORM;    /* readable */
     //if (spacefree(dev))
@@ -375,7 +379,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 
 	int len = 0;
 
-	if (_IOC_TYPE(cmd) != KUB_MACIG) return -ENOTTY;
+	if (_IOC_TYPE(cmd) != KUB_MAGIC) return -ENOTTY;
 
 	//if (down_interruptible (&dev->sem))
 	//	return 0;
@@ -406,7 +410,9 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 			if (_IOC_SIZE(cmd)==4)
 			{
 				int s = kub_check_send_events(dev);
-				put_user(s, (char*)arg);
+				printk("[%d] %d cmdms\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), s);
+				//put_user(s, (char*)arg);
+				copy_to_user((char*)arg, &s, 4);
 				len = 4;
 			}
 		}
@@ -419,6 +425,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 			{
 				memset(cmds, 0, len);
 				kub_fill_send_events(dev, cmds, len/sizeof(IOCtlCmd));
+				copy_to_user((char*)arg, cmds, len);
 				kfree(cmds);
 			}
 			else
@@ -506,7 +513,7 @@ static int __init kubridge_init(void)
 	{
 		sema_init(&kub_devices[i].sem, 1);
 		init_waitqueue_head(&kub_devices[i].in_q);
-		init_waitqueue_head(&kub_devices[i].out_q);
+		//init_waitqueue_head(&kub_devices[i].out_q);
 		kub_devices[i].listeners = NULL;
 		kub_devices[i].sends = NULL;
 		res = setup_cdev(kub_devices+i, i);

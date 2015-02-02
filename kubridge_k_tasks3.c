@@ -21,7 +21,7 @@
 #include <linux/moduleparam.h>
 #include <linux/types.h>	/* size_t */
 
-#include "kubridge.h"
+#include "kubridge_tasks.h"
 
 #define BRIDGE_IDX		(3)
 

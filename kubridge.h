@@ -20,34 +20,45 @@
 #ifndef _KUBRIDGE_H_
 #define _KUBRIDGE_H_
 
-#ifndef KUB_MACIG					// You can change it in your makefile.
-#define KUB_MACIG					((unsigned char)0xC9)
+#ifndef KUB_MAGIC					// You can change it in your makefile.
+#define KUB_MAGIC					((unsigned char)0xC9)
 #endif
-#define KUB_NUM_OF_BRIDGES		(1)
+
+#ifndef KUB_NUM_OF_BRIDGES
+#define KUB_NUM_OF_BRIDGES		(4)
+#endif
+
+// DEV_NAME+DEV_NO ==> /dev/[dev_name][dev_no_start] is first dev name
 #define DEV_NAME					"kubridge"
+
+#ifndef KUB_DEV_NO_START
+#define KUB_DEV_NO_START		(0)
+#endif
+
 typedef unsigned int IOCtlCmd;		// 8bits: type, 8bits: number, 13bits: size, 3bits:dir
 
 // Reserved cmds in all bridges(devices).
-#define IOC_READ_CMD_INFO		_IOR(KUB_MACIG, 0, int)		// int is not the only type 
-#define IOC_READ_CMDS			_IOR(KUB_MACIG, 1, int)		// int is not the only type
-
-/// === testing purpose
-struct kub_test_str {
-	int i, k;
-};
-
-#define READ_IOCTL				_IOR(KUB_MACIG, 2, struct kub_test_str)
-#define WRITE_IOCTL				_IOW(KUB_MACIG, 3, struct kub_test_str)
-/// === testing purpose end
+#define IOC_READ_CMD_INFO		_IOR(KUB_MAGIC, 0, int)		// int is not the only type 
+#define IOC_READ_CMDS			_IOR(KUB_MAGIC, 1, int)		// int is not the only type
 
 #if __KERNEL__
 
 typedef void (*kub_event_handler)(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload);
 
 int kub_register_event_listener(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, kub_event_handler listener);
-int kub_send_event(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload, kub_event_handler complete);
+int kub_send_event(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload/*ref not cp*/, kub_event_handler complete);		// async
 
 #else
+
+// dev_no euqals bridge often, but it depends on your setting.
+// dev_no should 0~(KUB_NUM_OF_BRIDGES-1) for maintaining easily
+
+typedef void (*kub_event_handler)(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload);
+
+int kub_register_event_listener(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload*/, kub_event_handler listener);
+int kub_send_event(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload/*ref not cp*/);					// sync
+
+void kub_main_loop(volatile int *run_bits);
 
 #endif
 

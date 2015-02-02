@@ -23,51 +23,61 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#include "kubridge.h"
+#include "kubridge_tasks.h"
 
-void* runTask(void *arg)
+int run_bits;
+
+void tsk0_result(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload)
 {
-	//char buf[200];
-	int fd = -1;
-	int i;
-	int index = (int)arg;
-	char dev_path[32];
-	printf("hello %d\n", index);
-
-	sprintf(dev_path, "/dev/%s%d", DEV_NAME, index);
-	printf("%s running\n", dev_path);
-
-	if ((fd = open(dev_path, O_RDWR)) < 0) {
-		perror("open");
-		return NULL;
-	}
-
-	struct kub_test_str d;
-	d.i = 0;
-	d.k = 1;
-
-	for (i=0; i<1000; i++)
+	char op;
+	struct tsk0_res res = *(struct tsk0_res*)payload;
+	switch(res.op)
 	{
-		if(ioctl(fd, WRITE_IOCTL, &d) < 0)
-			perror("first ioctl\n");
-
-		printf("[%d] data i=%d, k=%d\n", index, d.i, d.k);
-		usleep(1000);
-
-		if(ioctl(fd, READ_IOCTL, &d) < 0)
-			perror("second ioctl\n");
+		case 0: op = '+'; break;
+		case 1: op = '-'; break;
+		case 2: op = '*'; break;
+		case 3: op = '/'; break;
 	}
 
-	close(fd);
-
-	printf("%s close\n", dev_path);
-
-	return NULL;
+	printf("[%d] %d %c %d = %d\n", dev_no, res.a, op, res.b, res.r);
 }
 
-void *runTest(void* arg)
+void *runTask0(void *arg)
 {
-	printf("runTest %d\n", (int)arg);
+	int dev_no = (int)arg;
+	struct tsk0_str tsk;
+	int i;
+
+	kub_register_event_listener(dev_no, TSK0_ADD_RES, tsk0_result);
+	kub_register_event_listener(dev_no, TSK0_SUB_RES, tsk0_result);
+	kub_register_event_listener(dev_no, TSK0_MUL_RES, tsk0_result);
+	kub_register_event_listener(dev_no, TSK0_DIV_RES, tsk0_result);
+
+	for (i=0; i<10000; i++)
+	{
+		tsk.a = i;
+		tsk.b = i+1;
+		tsk.op = i % 4;
+		switch(tsk.op)
+		{
+		case 0:
+			kub_send_event(dev_no, TSK0_ADD_CMD, &tsk);
+			break;
+		case 1:
+			kub_send_event(dev_no, TSK0_SUB_CMD, &tsk);
+			break;
+		case 2:
+			kub_send_event(dev_no, TSK0_MUL_CMD, &tsk);
+			break;
+		case 3:
+			kub_send_event(dev_no, TSK0_DIV_CMD, &tsk);
+			break;
+		default:
+			break;
+		}
+	}
+
+	((char*)&run_bits)[0] = 0;
 }
 
 int main()
@@ -76,10 +86,11 @@ int main()
 	int i;
 	printf("hello\n");
 
+#if 0
 	for (i=0; i<4; i++)
 	{
 		//runTask((void*)i);
-		pthread_create(&t[i], NULL, runTask, (void*)i);
+		pthread_create(&t[i], NULL, runTask, (void*)(i+KUB_DEV_NO_START));
 		//pthread_create(&t[i], NULL, runTest, (void*)i);
 	}
 
@@ -87,6 +98,17 @@ int main()
 	{
 		pthread_join(t[i], NULL);
 	}
+#else
+	pthread_create(&t[0], NULL, runTask0, (void*)(0));
+
+	((char*)&run_bits)[0] = 1;
+	((char*)&run_bits)[1] = 0;
+	((char*)&run_bits)[2] = 0;
+	((char*)&run_bits)[3] = 0;
+
+	kub_main_loop(&run_bits);
+
+#endif
 	
 
 	return 0;
