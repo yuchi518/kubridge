@@ -114,7 +114,7 @@ int kub_register_event_listener(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload
 	li->cmd = cmd;
 	li->sizeOfPayload = _IOC_SIZE(cmd);//sizeOfPayload;
 	li->listener = listener;
-	li->buff = kmalloc(sizeof(li->sizeOfPayload), GFP_KERNEL);
+	li->buff = kmalloc(li->sizeOfPayload, GFP_KERNEL);
 	if (li->buff==NULL) {
 		res = -ENOMEM;
 		kfree(li);

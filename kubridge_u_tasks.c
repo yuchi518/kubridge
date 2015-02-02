@@ -37,7 +37,7 @@ void tsk0_result(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *paylo
 		case 1: op = '-'; break;
 		case 2: op = '*'; break;
 		case 3: op = '/'; break;
-		case 4: op = '?'; break;
+		default: op = '?'; break;
 	}
 
 	printf("[%d] %d %c %d = %d\n", dev_no, res.a, op, res.b, res.r);
@@ -54,7 +54,7 @@ void *runTask0(void *arg)
 	kub_register_event_listener(dev_no, TSK0_MUL_RES, tsk0_result);
 	kub_register_event_listener(dev_no, TSK0_DIV_RES, tsk0_result);
 
-	for (i=0; i<4; i++)
+	for (i=0; i<10000; i++)
 	{
 		tsk.a = i;
 		tsk.b = i+1;
@@ -88,19 +88,6 @@ int main()
 	int i;
 	printf("hello\n");
 
-#if 0
-	for (i=0; i<4; i++)
-	{
-		//runTask((void*)i);
-		pthread_create(&t[i], NULL, runTask, (void*)(i+KUB_DEV_NO_START));
-		//pthread_create(&t[i], NULL, runTest, (void*)i);
-	}
-
-	for (i=0; i<4; i++)
-	{
-		pthread_join(t[i], NULL);
-	}
-#else
 	pthread_create(&t[0], NULL, runTask0, (void*)(0));
 
 	((char*)&run_bits)[0] = 1;
@@ -109,9 +96,6 @@ int main()
 	((char*)&run_bits)[3] = 0;
 
 	kub_main_loop(&run_bits);
-
-#endif
-	
 
 	return 0;
 }

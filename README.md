@@ -3,13 +3,14 @@ Kernel/User mode data bridge. KUBridge uses IOCtrl to transfer commands between 
 I try to let the interface as simple as possible.
 
 ## Version
-0.1
+0.2
 
 ## Tech
 
 KUBridge uses a number of open source projects to work properly:
 
 * [uthash] - A hash lib in C lang. I modified a little code to support kernel mode. (Link: http://troydhanson.github.io/uthash/)
+* [list] - double linked list, comes from linux kernel source.
 
 ## Installation
 You should understand how to compile the kernel module and what tools you should install first. I test the code in Ubuntu 12.04.

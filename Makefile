@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=
+CFLAGS=-g
 LDFLAGS=
 SOURCES=kubridge_u.c kubridge_u_tasks.c
 OBJECTS=$(SOURCES:.c=.o)

@@ -79,7 +79,7 @@ int kub_register_event_listener(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload
 	li->cmd = cmd;
 	li->sizeOfPayload = _IOC_SIZE(cmd);//sizeOfPayload;
 	li->listener = listener;
-	li->buff = malloc(sizeof(li->sizeOfPayload));
+	li->buff = malloc(li->sizeOfPayload);
 	if (li->buff==NULL) {
 		res = -1;
 		free(li);
@@ -115,10 +115,9 @@ void kub_release_event_listeners(struct kubridge_device *dev)
 	//	return -ERESTARTSYS;
 
 	HASH_ITER(hh, dev->listeners, li, tmp) {
-		printf("HT Del %d\n", li->cmd);
-   	HASH_DEL(dev->listeners, li);  /* delete; users advances to next */
-   	//free(li->buff);
-   	//free(li);            /* optional- if you want to free  */
+		HASH_DEL(dev->listeners, li);  /* delete; users advances to next */
+   	free(li->buff);
+   	free(li);            /* optional- if you want to free  */
 	}
 
 	//up(&dev->sem);
@@ -215,7 +214,7 @@ SHUT_DOWN:
 		kub_release_event_listeners(&kub_devices[i]);
 		printf("-%d\n",i);
 	}
-	/*free(kub_devices);
-	if (cmds_buff) free(cmds_buff);*/
+	free(kub_devices);
+	if (cmds_buff) free(cmds_buff);
 }
 
