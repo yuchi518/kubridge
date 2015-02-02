@@ -416,7 +416,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 				len = 4;
 			}
 		}
-		else if (_IOC_NR(cmd)==_IOC_NR(IOC_READ_CMDS))
+		else if (_IOC_NR(cmd)==_IOC_NR(IOC_READ_CMDS(0)))
 		{
 			IOCtlCmd *cmds = NULL;
 			len = _IOC_SIZE(cmd);

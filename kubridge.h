@@ -39,7 +39,8 @@ typedef unsigned int IOCtlCmd;		// 8bits: type, 8bits: number, 13bits: size, 3bi
 
 // Reserved cmds in all bridges(devices).
 #define IOC_READ_CMD_INFO		_IOR(KUB_MAGIC, 0, int)		// int is not the only type 
-#define IOC_READ_CMDS			_IOR(KUB_MAGIC, 1, int)		// int is not the only type
+//#define IOC_READ_CMDS			_IOR(KUB_MAGIC, 1, int)		// int is not the only type
+#define IOC_READ_CMDS(cnt)		_IOC(_IOC_READ,(KUB_MAGIC),(1), (cnt*sizeof(IOCtlCmd)))
 
 #if __KERNEL__
 

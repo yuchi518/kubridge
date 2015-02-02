@@ -43,22 +43,22 @@ void task_event_handler(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void
 	{
 	case 0: // add
 		op = '+';
-		res->r = res->a + res->a;
+		res->r = res->a + res->b;
 		r_cmd = TSK0_ADD_RES;
 		break;
 	case 1: // sub
 		op = '-';
-		res->r = res->a - res->a;
+		res->r = res->a - res->b;
 		r_cmd = TSK0_SUB_RES;
 		break;
 	case 2: // mul
 		op = '*';
-		res->r = res->a * res->a;
+		res->r = res->a * res->b;
 		r_cmd = TSK0_MUL_RES;
 		break;
 	case 3: // div
 		op = '/';
-		res->r = res->a / res->a;
+		res->r = res->a / res->b;
 		r_cmd = TSK0_DIV_RES;
 		break;
 	default:

@@ -115,9 +115,10 @@ void kub_release_event_listeners(struct kubridge_device *dev)
 	//	return -ERESTARTSYS;
 
 	HASH_ITER(hh, dev->listeners, li, tmp) {
+		printf("HT Del %d\n", li->cmd);
    	HASH_DEL(dev->listeners, li);  /* delete; users advances to next */
-   	free(li->buff);
-   	free(li);            /* optional- if you want to free  */
+   	//free(li->buff);
+   	//free(li);            /* optional- if you want to free  */
 	}
 
 	//up(&dev->sem);
@@ -140,7 +141,7 @@ int kub_send_event(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *pay
 void kub_main_loop(volatile int *run_bits)
 {
 	int i,j;
-	int timeout_msecs = -1;
+	int timeout_msecs = 100;
 	char dev_path[64];
 	struct pollfd fds[KUB_NUM_OF_BRIDGES];
 	int cmd_num;
@@ -181,7 +182,7 @@ void kub_main_loop(volatile int *run_bits)
 					max_cmds_buff = cmd_num;
 				}
 
-				ioctl(fds[i].fd, IOC_READ_CMDS, cmds_buff);
+				ioctl(fds[i].fd, IOC_READ_CMDS(cmd_num), cmds_buff);
 
 				printf("[%d] Read %d ioctl cmd\n", i, cmd_num);
 
@@ -208,10 +209,13 @@ void kub_main_loop(volatile int *run_bits)
 SHUT_DOWN:
 	for (; i >= 0; i--)
 	{
+		printf("%d",i);
 		if (kub_devices[i].fd >= 0) close(kub_devices[i].fd);
+		printf("-%d(%p)",i, kub_devices[i].listeners);
 		kub_release_event_listeners(&kub_devices[i]);
+		printf("-%d\n",i);
 	}
-	free(kub_devices);
-	if (cmds_buff) free(cmds_buff);
+	/*free(kub_devices);
+	if (cmds_buff) free(cmds_buff);*/
 }
 
