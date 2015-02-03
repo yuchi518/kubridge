@@ -49,7 +49,7 @@ int thread_function0(void *data)
 		td->d[0] = 0;
 		td->d[1] = i;
 		kub_send_event(BRIDGE_IDX, TSK1_DATA/*, sizeof(struct kub_test_str)*/, td, task_event_complete);
-		udelay(10000);
+		mdelay(1);
 		//yield();
 	}
 
@@ -69,7 +69,7 @@ int thread_function1(void *data)
 		td->d[0] = 1;
 		td->d[1] = i;
 		kub_send_event(BRIDGE_IDX, TSK1_DATA/*, sizeof(struct kub_test_str)*/, td, task_event_complete);
-		udelay(10000);
+		mdelay(1);
 		//yield();
 	}
 

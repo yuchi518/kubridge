@@ -386,7 +386,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 
 	int len = 0;
 
-	if (_IOC_TYPE(cmd) != KUB_MAGIC) return -ENOTTY;
+	//if (_IOC_TYPE(cmd) != KUB_MAGIC) return -ENOTTY;
 
 	//if (down_interruptible (&dev->sem))
 	//	return 0;
@@ -412,7 +412,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 	if (cmd & IOC_OUT)
 	{
 		// check reserved first
-		if (_IOC_NR(cmd)==_IOC_NR(IOC_READ_CMD_INFO))
+		if ((_IOC_TYPE(cmd) == KUB_MAGIC) && _IOC_NR(cmd)==_IOC_NR(IOC_READ_CMD_INFO))
 		{
 			if (_IOC_SIZE(cmd)==4)
 			{
@@ -422,8 +422,10 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 				copy_to_user((char*)arg, &s, 4);
 				len = 4;
 			}
+			else
+				return -ENOTTY;
 		}
-		else if (_IOC_NR(cmd)==_IOC_NR(IOC_READ_CMDS(0)))
+		else if ((_IOC_TYPE(cmd) == KUB_MAGIC) && _IOC_NR(cmd)==_IOC_NR(IOC_READ_CMDS(0)))
 		{
 			IOCtlCmd *cmds = NULL;
 			len = _IOC_SIZE(cmd);

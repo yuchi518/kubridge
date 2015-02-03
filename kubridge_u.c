@@ -175,6 +175,11 @@ void kub_main_loop(volatile int *run_bits)
 			{
 				//sem_wait(&kub_devices[i].sem);
 				ioctl(fds[i].fd, IOC_READ_CMD_INFO, &cmd_num);
+				if (cmd_num<=0 || cmd_num>10000) {
+					printf("<ERROR> NO CMDS read\n");
+					continue;
+				}
+
 				printf("[%d] Read to read %d ioctl cmd\n", i, cmd_num);
 
 				if (cmd_num > max_cmds_buff)
