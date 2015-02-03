@@ -63,6 +63,7 @@ struct kub_event_send_info
 {
 	IOCtlCmd cmd;
 	struct list_head packets;
+	int count;			// count of packets
 
 	UT_hash_handle hh;
 };
@@ -187,12 +188,17 @@ int kub_send_event(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *pay
 	pkt = kmalloc(sizeof(*pkt), GFP_KERNEL);
 	if (!pkt) {
 		res = -ENOMEM;
+		if (list_empty(&sd->packets))		// all don't, clean
+			HASH_DEL(kub_devices[bridge].sends, sd);
+		printk("kub_send_event, **NO memory**\n");
 		goto end;
 	}
 
 	pkt->sizeOfPayload = _IOC_SIZE(cmd); //sizeOfPayload;
 	pkt->payload = payload;
 	pkt->complete = complete;
+
+	sd->count ++;
 
 	list_add_tail(&pkt->list, &sd->packets);
 
@@ -223,6 +229,7 @@ int kub_pop_send_event(struct kubridge_device *dev, IOCtlCmd cmd, struct kub_eve
 
 	*pkt = list_entry(sd->packets.next, struct kub_event_send_pkt, list);
 	list_del(&(*pkt)->list);
+	sd->count--;
 
 	if (list_empty(&sd->packets))		// all don't, clean
 		HASH_DEL(dev->sends, sd);
@@ -410,7 +417,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 			if (_IOC_SIZE(cmd)==4)
 			{
 				int s = kub_check_send_events(dev);
-				printk("[%d] %d cmdms\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), s);
+				//printk("[%d] %d cmdms\n", (int)((unsigned long)dev-(unsigned long)kub_devices)/sizeof(*kub_devices), s);
 				//put_user(s, (char*)arg);
 				copy_to_user((char*)arg, &s, 4);
 				len = 4;

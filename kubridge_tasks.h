@@ -31,7 +31,7 @@ struct kub_test_str {
 #define WRITE_IOCTL				_IOW(KUB_MAGIC, 3, struct kub_test_str)
 
 
-// task 
+// task 0 - calculator
 struct tsk0_str {
 	int op;				// 0:add, 1:sub, 2:mul, 3:div
 	int a, b;
@@ -50,6 +50,15 @@ struct tsk0_res {
 #define TSK0_MUL_RES				_IOR(KUB_MAGIC, 6, struct tsk0_res)
 #define TSK0_DIV_CMD				_IOW(KUB_MAGIC, 7, struct tsk0_str)
 #define TSK0_DIV_RES				_IOR(KUB_MAGIC, 7, struct tsk0_res)
+
+
+// task 1 - random gen data
+struct tsk1_data {
+	int d[4];
+};
+
+#define TSK1_GEN_CMD				_IOW(KUB_MAGIC, 8, int)
+#define TSK1_DATA					_IOR(KUB_MAGIC, 8, struct tsk1_data)
 
 /// === testing purpose end
 

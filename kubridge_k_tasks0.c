@@ -20,7 +20,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/types.h>	/* size_t */
-#include <linux/slab.h> /* kmalloc() */
+#include <linux/slab.h> 	/* kmalloc() */
 
 #include "kubridge_tasks.h"
 
@@ -28,7 +28,7 @@
 
 void task_event_complete(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload)
 {
-	printk("[task%d] task_event_complete\n", BRIDGE_IDX);
+	//printk("[task%d] task_event_complete\n", BRIDGE_IDX);
 	kfree(payload);
 }
 
@@ -68,10 +68,10 @@ void task_event_handler(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void
 		break;
 	}
 
-	printk("[task%d] task_event_handler (%d %c %d = %d)\n", BRIDGE_IDX, res->a, op, res->b, res->r);
+	//printk("[task%d] task_event_handler (%d %c %d = %d)\n", BRIDGE_IDX, res->a, op, res->b, res->r);
 	if (r_cmd) kub_send_event(BRIDGE_IDX, r_cmd/*, sizeof(struct kub_test_str)*/, res, task_event_complete);
 	else kfree(res);
-	printk("[task%d] task_event_handler done\n", BRIDGE_IDX);
+	//printk("[task%d] task_event_handler done\n", BRIDGE_IDX);
 }
 
 static int __init kubridge_tasks_init(void)

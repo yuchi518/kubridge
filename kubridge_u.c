@@ -156,7 +156,10 @@ void kub_main_loop(volatile int *run_bits)
 		sem_init(&kub_devices[i].sem, 1, 1);
 		kub_devices[i].listeners = NULL;
 		sprintf(dev_path, "/dev/%s%d", DEV_NAME, i+KUB_DEV_NO_START);
-		if ((kub_devices[i].fd = open(dev_path, O_RDWR)) < 0) goto SHUT_DOWN;
+		if ((kub_devices[i].fd = open(dev_path, O_RDWR)) < 0) {
+			printf("Can't open dev %s%d\n", DEV_NAME, i+KUB_DEV_NO_START);
+			goto SHUT_DOWN;
+		}
 		fds[i].fd = kub_devices[i].fd;
 		fds[i].events = POLLIN;
 	}

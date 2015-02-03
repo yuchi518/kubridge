@@ -59,6 +59,7 @@ typedef void (*kub_event_handler)(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPaylo
 int kub_register_event_listener(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload*/, kub_event_handler listener);
 int kub_send_event(int dev_no, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload/*ref not cp*/);					// sync
 
+// **NOTE** Run main_loop first before you call any other functions.
 void kub_main_loop(volatile int *run_bits);
 
 #endif
