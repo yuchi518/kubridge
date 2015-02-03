@@ -22,15 +22,6 @@
 
 #include "kubridge.h"
 
-/// === testing purpose
-struct kub_test_str {
-	int i, k;
-};
-
-#define READ_IOCTL				_IOR(KUB_MAGIC, 2, struct kub_test_str)
-#define WRITE_IOCTL				_IOW(KUB_MAGIC, 3, struct kub_test_str)
-
-
 // task 0 - calculator
 struct tsk0_str {
 	int op;				// 0:add, 1:sub, 2:mul, 3:div

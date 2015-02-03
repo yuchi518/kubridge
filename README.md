@@ -1,5 +1,5 @@
 # KUBridge
-Kernel/User mode data bridge. KUBridge uses IOCtrl to transfer commands between kernel module and user program.
+Kernel/User mode bridge. KUBridge uses IOCtrl to transfer commands(short message) between kernel module and user program.
 I try to let the interface as simple as possible.
 
 ## Version
@@ -35,7 +35,10 @@ $sudo ./unload.sh
 ```
 
 ## Development
-If you are interested in how to write your kernel module and user programe, you can refer the kubridge_k_task0.c and kubridge_u_tasks.c
+If you are interested in how to write your kernel module and user programe, you can refer the kubridge_k_task[0-1].c and kubridge_u_tasks.c
+
+* task0 - A calculator, kernel module supports four operators (+,-,*,/).
+* task1 - Data generator, kernel module generates data continually.
 
 ## Todo's
 

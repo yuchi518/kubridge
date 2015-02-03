@@ -30,8 +30,6 @@
 
 #define BRIDGE_IDX		(1)
 
-struct kub_test_str data;
-
 void task_event_complete(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *payload)
 {
 	//printk("[task%d] task_event_complete\n", BRIDGE_IDX);
