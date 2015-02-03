@@ -35,10 +35,19 @@ $sudo ./unload.sh
 ```
 
 ## Development
-If you are interested in how to write your kernel module and user programe, you can refer the kubridge_k_task[0-1].c and kubridge_u_tasks.c
+If you are interested in how to write your kernel module and user programe, you can refer the __kubridge_k_task[0-1].c__, __kubridge_u_tasks.c__ and __kubridge_u.h__.
 
 * task0 - A calculator, kernel module supports four operators (+,-,*,/).
 * task1 - Data generator, kernel module generates data continually.
+
+In your kernel module, you should only includes following 4 fiels. Make sure compiling these codes with a predefine `__KERNEL__` (Add it in your makefile). 
+```
+kubrideg.h kubridge_k.c list.h uthash.h 
+```
+In your user programe, you should includes following 4 files.
+```
+kubridge.h kubridge_u.c list.h uthash.h
+```
 
 ## Todo's
 
