@@ -27,6 +27,7 @@
 #include <linux/proc_fs.h>
 #include <linux/poll.h>
 #include <linux/sched.h>
+#include <linux/seq_file.h>
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/semaphore.h> /* sem */
 #include <linux/types.h>	/* size_t */
@@ -75,6 +76,8 @@ struct kubridge_device {
 	wait_queue_head_t in_q/*, out_q*/;       /* read and write queues in user viewpoint */
 	struct kub_event_listener_info *listeners;
 	struct kub_event_send_info *sends;
+
+	unsigned int listen_cnt, send_cnt;
 };
 
 static struct kubridge_device *kub_devices=NULL;
@@ -141,6 +144,8 @@ int kub_get_event_listener(struct kubridge_device *dev, IOCtlCmd cmd, struct kub
 		return -ERESTARTSYS;
 
 	HASH_FIND_INT(dev->listeners, &cmd, *info);
+
+	if (*info) dev->listen_cnt++;
 //end:
 	up(&dev->sem);
 	return res;
@@ -230,6 +235,8 @@ int kub_pop_send_event(struct kubridge_device *dev, IOCtlCmd cmd, struct kub_eve
 	*pkt = list_entry(sd->packets.next, struct kub_event_send_pkt, list);
 	list_del(&(*pkt)->list);
 	sd->count--;
+
+	dev->send_cnt++;
 
 	if (list_empty(&sd->packets))		// all don't, clean
 		HASH_DEL(dev->sends, sd);
@@ -488,6 +495,40 @@ static inline int setup_cdev(struct kubridge_device *dev, int index)
 	//	printk(KERN_NOTICE "Error %d adding scull%d", err, index);
 }
 
+
+// kubinfo proc
+static int kubinfo_proc_show(struct seq_file *m, void *v) {
+	int i;
+	unsigned int lCnt, sCnt;
+
+	seq_printf(m, DEV_NAME " usage:\n");
+	for (i=0; i<KUB_NUM_OF_BRIDGES; i++)
+	{
+		if (down_interruptible(&kub_devices[i].sem))
+			continue;
+		lCnt = kub_devices[i].listen_cnt;
+		sCnt = kub_devices[i].send_cnt;
+		up(&kub_devices[i].sem);
+
+		seq_printf(m, "[%d] listen %d times, send %d tiems.\n", i, lCnt, sCnt);
+	}
+  return 0;
+}
+
+static int kubinfo_proc_open(struct inode *inode, struct  file *file) {
+  return single_open(file, kubinfo_proc_show, NULL);
+}
+
+static const struct file_operations kubinfo_fops = {
+  .owner = THIS_MODULE,
+  .open = kubinfo_proc_open,
+  .read = seq_read,
+  .llseek = seq_lseek,
+  .release = single_release,
+};
+
+
+
 static int __init kubridge_init(void)
 {
 	int res, i;
@@ -525,6 +566,8 @@ static int __init kubridge_init(void)
 		//init_waitqueue_head(&kub_devices[i].out_q);
 		kub_devices[i].listeners = NULL;
 		kub_devices[i].sends = NULL;
+		kub_devices[i].listen_cnt = 0;
+		kub_devices[i].send_cnt = 0;
 		res = setup_cdev(kub_devices+i, i);
 	}
 
@@ -544,6 +587,10 @@ static int __init kubridge_init(void)
 
 	printk("cdev example: assigned major: %d\n", major);
 	printk("create node with mknod /dev/" DEV_NAME " c %d %d\n", major, minor);
+
+	// kubinfo proc
+	proc_create(PROC_NAME, 0, NULL, &kubinfo_fops);
+
  	return 0;
 
 fail_malloc:
@@ -555,6 +602,10 @@ static void __exit kubridge_exit(void)
 {
 	int i;
 
+	// kubinfo proc
+	remove_proc_entry(PROC_NAME, NULL);
+
+	// kubridge
 	for (i = 0; i < num_devs; i++) {
 		cdev_del(&kub_devices[i].cdev);
 		kub_release_event_listeners(&kub_devices[i]);

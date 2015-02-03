@@ -27,7 +27,17 @@ Run the user program.
 ```sh
 $sudo ./kubridge_u
 ```
-You will see 4 threads try to communicate with kernel module at same time.
+You will see 2 tasks try to communicate with kernel module at same time.
+
+You can see the kubridge usage by following command.
+```
+$cat /proc/kubinfo
+kubridge usage:
+[0] listen 10000 times, send  10000 times
+[1] listen 1 times, send  2000 times
+[2] listen 0 times, send  0 times
+[3] listen 0 times, send  0 times
+```
 
 Uninstall the kernel module.
 ```sh

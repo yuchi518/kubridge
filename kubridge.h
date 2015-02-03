@@ -30,6 +30,7 @@
 
 // DEV_NAME+DEV_NO ==> /dev/[dev_name][dev_no_start] is first dev name
 #define DEV_NAME					"kubridge"
+#define PROC_NAME					"kubinfo"
 
 #ifndef KUB_DEV_NO_START
 #define KUB_DEV_NO_START		(0)
