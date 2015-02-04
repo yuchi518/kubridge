@@ -30,8 +30,18 @@
 
 // DEV_NAME+DEV_NO ==> /dev/[dev_name][dev_no_start] is first dev name
 #define DEV_NAME					"kubridge"
-#define PROC_NAME					"kubinfo"
 
+#define ENABLE_KUB_PROC			1
+#define ENABLE_KUB_SYSFS		1
+
+#if ENABLE_KUB_PROC
+#define PROC_NAME					"kubinfo"			// ==> /proc/kubinfo
+#endif
+
+#if ENABLE_KUB_SYSFS
+#define SYSFS_NAME				"kub"
+#define SYSFS_SUBNAME			"info[%d]"			// ==> /sys/kernel/kub/info[0~n]
+#endif
 #ifndef KUB_DEV_NO_START
 #define KUB_DEV_NO_START		(0)
 #endif

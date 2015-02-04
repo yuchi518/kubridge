@@ -29,6 +29,7 @@
 #include <linux/sched.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>		/* kmalloc() */
+#include <linux/sysfs.h>
 #include <linux/semaphore.h> /* sem */
 #include <linux/types.h>	/* size_t */
 #include <linux/version.h>
@@ -71,6 +72,7 @@ struct kub_event_send_info
 
 // dev
 struct kubridge_device {
+	struct kobject kobj;								// this is for sysfs, this is not same as cdev's kobj
 	struct cdev cdev;
 	struct semaphore sem;
 	wait_queue_head_t in_q/*, out_q*/;       /* read and write queues in user viewpoint */
@@ -497,6 +499,7 @@ static inline int setup_cdev(struct kubridge_device *dev, int index)
 
 
 // kubinfo proc
+#if ENABLE_KUB_PROC
 static int kubinfo_proc_show(struct seq_file *m, void *v) {
 	int i;
 	unsigned int lCnt, sCnt;
@@ -526,8 +529,75 @@ static const struct file_operations kubinfo_fops = {
   .llseek = seq_lseek,
   .release = single_release,
 };
+#endif
+
+// sysfs
+#if ENABLE_KUB_SYSFS
+// kobj_attr_show, kobj_attr_store, kobj_sysfs_ops are copied from linux kernel source.
+/* default kobject attribute operations */
+static ssize_t kobj_attr_show(struct kobject *kobj, struct attribute *attr,
+			      char *buf)
+{
+	struct kobj_attribute *kattr;
+	ssize_t ret = -EIO;
+
+	kattr = container_of(attr, struct kobj_attribute, attr);
+	if (kattr->show)
+		ret = kattr->show(kobj, kattr, buf);
+	return ret;
+}
+
+static ssize_t kobj_attr_store(struct kobject *kobj, struct attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct kobj_attribute *kattr;
+	ssize_t ret = -EIO;
+
+	kattr = container_of(attr, struct kobj_attribute, attr);
+	if (kattr->store)
+		ret = kattr->store(kobj, kattr, buf, count);
+	return ret;
+}
+
+static struct sysfs_ops kub_sysfs_ops = {
+	.show	= kobj_attr_show,
+	.store	= kobj_attr_store,
+};
+
+ssize_t usage_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "hello");
+}
+
+ssize_t usage_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	// ignore all input =,=
+	return count;
+}
+
+static struct kobj_attribute usage_attribute = __ATTR("usage", 0666, usage_show, usage_store);
+static struct attribute *kubinfo_default_attrs[] = {
+	&usage_attribute.attr,
+	NULL,	/* need to NULL terminate the list of attributes */
+};
+
+static void kub_kobj_release(struct kobject *kobj)
+{
+	pr_debug("kobject: (%p): %s\n", kobj, __func__);
+	kfree(kobj);
+}
+
+static struct kobj_type kubinfo_ktype = {
+	.release	= kub_kobj_release,
+	.sysfs_ops	= &kub_sysfs_ops, //&kobj_sysfs_ops,
+	.default_attrs = kubinfo_default_attrs,
+};
+
+static struct kset *kubinfo_kset;
+#endif
 
 
+// module init/deinit
 
 static int __init kubridge_init(void)
 {
@@ -589,7 +659,54 @@ static int __init kubridge_init(void)
 	printk("create node with mknod /dev/" DEV_NAME " c %d %d\n", major, minor);
 
 	// kubinfo proc
+#if ENABLE_KUB_PROC
 	proc_create(PROC_NAME, 0, NULL, &kubinfo_fops);
+#endif
+	
+	// sysfs
+#if ENABLE_KUB_SYSFS
+	kubinfo_kset = kset_create_and_add(SYSFS_NAME, NULL, kernel_kobj);
+	if (kubinfo_kset)
+	{
+		for (i=0; i<num_devs; i++)
+		{
+			//As we have a kset for this kobject, we need to set it before calling the kobject core.
+			kub_devices[i].kobj.kset = kubinfo_kset;
+
+			/*
+			 * Initialize and add the kobject to the kernel.  All the default files
+			 * will be created here.  As we have already specified a kset for this
+			 * kobject, we don't have to set a parent for the kobject, the kobject
+			 * will be placed beneath that kset automatically.
+			 */
+			if (kobject_init_and_add(&kub_devices[i].kobj, &kubinfo_ktype, NULL, SYSFS_SUBNAME, i)) {
+				break;
+			}
+
+			/*
+			 * We are always responsible for sending the uevent that the kobject
+			 * was added to the system.
+			 */
+			kobject_uevent(&kub_devices[i].kobj, KOBJ_ADD);
+		}
+		
+		if (i!=num_devs)
+		{
+			for (; i>=0; i--)
+			{
+				kobject_put(&kub_devices[i].kobj);
+			}
+			kset_unregister(kubinfo_kset);
+			kubinfo_kset = NULL;
+		}
+	}
+	else
+	{
+		// because this is information, is not load, just alert but continue
+		printk("kubinfo's kset was not created.\n");
+		//return -ENOMEM;
+	}
+#endif
 
  	return 0;
 
@@ -602,8 +719,21 @@ static void __exit kubridge_exit(void)
 {
 	int i;
 
+#if ENABLE_KUB_SYSFS
+	if (kubinfo_kset)
+	{
+		for (i=0; i<num_devs; i++)
+		{
+			kobject_put(&kub_devices[i].kobj);
+		}
+		kset_unregister(kubinfo_kset);
+	}
+#endif
+
+#if ENABLE_KUB_PROC
 	// kubinfo proc
 	remove_proc_entry(PROC_NAME, NULL);
+#endif
 
 	// kubridge
 	for (i = 0; i < num_devs; i++) {
