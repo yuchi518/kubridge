@@ -40,7 +40,7 @@
 
 #if ENABLE_KUB_SYSFS
 #define SYSFS_NAME				"kub"
-#define SYSFS_SUBNAME			"info[%d]"			// ==> /sys/kernel/kub/info[0~n]
+#define SYSFS_SUBNAME			"info%d"			// ==> /sys/kernel/kub/info[0~n]
 #endif
 #ifndef KUB_DEV_NO_START
 #define KUB_DEV_NO_START		(0)

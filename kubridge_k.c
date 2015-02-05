@@ -72,7 +72,6 @@ struct kub_event_send_info
 
 // dev
 struct kubridge_device {
-	struct kobject kobj;								// this is for sysfs, this is not same as cdev's kobj
 	struct cdev cdev;
 	struct semaphore sem;
 	wait_queue_head_t in_q/*, out_q*/;       /* read and write queues in user viewpoint */
@@ -80,6 +79,10 @@ struct kubridge_device {
 	struct kub_event_send_info *sends;
 
 	unsigned int listen_cnt, send_cnt;
+
+#if ENABLE_KUB_SYSFS	
+	struct kobject *kobj;								// this is for sysfs, this is not same as cdev's kobj
+#endif
 };
 
 static struct kubridge_device *kub_devices=NULL;
@@ -111,7 +114,7 @@ int kub_register_event_listener(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload
 	if (listener==NULL)
 		goto end;
 
-	li = kmalloc(sizeof(*li), GFP_KERNEL);
+	li = kzalloc(sizeof(*li), GFP_KERNEL);
 	if (!li) {
 		res = -ENOMEM;
 		goto end;
@@ -120,7 +123,7 @@ int kub_register_event_listener(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload
 	li->cmd = cmd;
 	li->sizeOfPayload = _IOC_SIZE(cmd);//sizeOfPayload;
 	li->listener = listener;
-	li->buff = kmalloc(li->sizeOfPayload, GFP_KERNEL);
+	li->buff = kzalloc(li->sizeOfPayload, GFP_KERNEL);
 	if (li->buff==NULL) {
 		res = -ENOMEM;
 		kfree(li);
@@ -182,7 +185,7 @@ int kub_send_event(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *pay
 	if (sd==NULL)
 	{
 		// create one
-		sd = kmalloc(sizeof(*sd), GFP_KERNEL);
+		sd = kzalloc(sizeof(*sd), GFP_KERNEL);
 		if (!sd) {
 			res = -ENOMEM;
 			goto end;
@@ -192,7 +195,7 @@ int kub_send_event(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void *pay
 		HASH_ADD_INT(kub_devices[bridge].sends, cmd, sd);
 	}
 
-	pkt = kmalloc(sizeof(*pkt), GFP_KERNEL);
+	pkt = kzalloc(sizeof(*pkt), GFP_KERNEL);
 	if (!pkt) {
 		res = -ENOMEM;
 		if (list_empty(&sd->packets))		// all don't, clean
@@ -438,7 +441,7 @@ static long device_ioctl(struct file *filep, unsigned int cmd, unsigned long arg
 		{
 			IOCtlCmd *cmds = NULL;
 			len = _IOC_SIZE(cmd);
-			cmds = kmalloc(len, GFP_KERNEL);
+			cmds = kzalloc(len, GFP_KERNEL);
 			if (cmds)
 			{
 				memset(cmds, 0, len);
@@ -505,7 +508,7 @@ static int kubinfo_proc_show(struct seq_file *m, void *v) {
 	unsigned int lCnt, sCnt;
 
 	seq_printf(m, DEV_NAME " usage:\n");
-	for (i=0; i<KUB_NUM_OF_BRIDGES; i++)
+	for (i=0; i<num_devs; i++)
 	{
 		if (down_interruptible(&kub_devices[i].sem))
 			continue;
@@ -566,7 +569,29 @@ static struct sysfs_ops kub_sysfs_ops = {
 
 ssize_t usage_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "hello");
+	int i;
+	unsigned int lCnt, sCnt;
+	int charCnt = 0;
+
+	for (i=0; i<num_devs; i++)
+	{
+		if (kub_devices[i].kobj==kobj) break;
+	}
+
+	if (i==num_devs) {
+		printk("Can't find kobj\n");
+		return 0;
+	}
+
+	charCnt += sprintf(buf+charCnt, DEV_NAME " usage:\n");
+	if (down_interruptible(&kub_devices[i].sem))
+			return 0;
+	lCnt = kub_devices[i].listen_cnt;
+	sCnt = kub_devices[i].send_cnt;
+	up(&kub_devices[i].sem);
+
+	charCnt += sprintf(buf+charCnt, "[%d] listen %d times, send %d tiems.\n", i, lCnt, sCnt);
+	return charCnt;
 }
 
 ssize_t usage_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
@@ -575,7 +600,7 @@ ssize_t usage_store(struct kobject *kobj, struct kobj_attribute *attr, const cha
 	return count;
 }
 
-static struct kobj_attribute usage_attribute = __ATTR("usage", 0666, usage_show, usage_store);
+static struct kobj_attribute usage_attribute = __ATTR(usage, 0666, usage_show, usage_store);
 static struct attribute *kubinfo_default_attrs[] = {
 	&usage_attribute.attr,
 	NULL,	/* need to NULL terminate the list of attributes */
@@ -622,7 +647,7 @@ static int __init kubridge_init(void)
 		return res;
 	}
 
-	kub_devices = kmalloc(num_devs * sizeof(struct kubridge_device), GFP_KERNEL);
+	kub_devices = kzalloc(num_devs * sizeof(struct kubridge_device), GFP_KERNEL);
 	if (!kub_devices) {
 		res = -ENOMEM;
 		goto fail_malloc;
@@ -671,7 +696,13 @@ static int __init kubridge_init(void)
 		for (i=0; i<num_devs; i++)
 		{
 			//As we have a kset for this kobject, we need to set it before calling the kobject core.
-			kub_devices[i].kobj.kset = kubinfo_kset;
+			kub_devices[i].kobj = kzalloc(sizeof(*kub_devices[i].kobj), GFP_KERNEL);
+			if (!kub_devices[i].kobj) {
+				printk("Can't create kubridge's sysfs.\n");
+				break;
+			}
+
+			kub_devices[i].kobj->kset = kubinfo_kset;
 
 			/*
 			 * Initialize and add the kobject to the kernel.  All the default files
@@ -679,7 +710,8 @@ static int __init kubridge_init(void)
 			 * kobject, we don't have to set a parent for the kobject, the kobject
 			 * will be placed beneath that kset automatically.
 			 */
-			if (kobject_init_and_add(&kub_devices[i].kobj, &kubinfo_ktype, NULL, SYSFS_SUBNAME, i)) {
+			if (kobject_init_and_add(kub_devices[i].kobj, &kubinfo_ktype, NULL, SYSFS_SUBNAME, i)) {
+				printk("init_and_add error\n");
 				break;
 			}
 
@@ -687,14 +719,19 @@ static int __init kubridge_init(void)
 			 * We are always responsible for sending the uevent that the kobject
 			 * was added to the system.
 			 */
-			kobject_uevent(&kub_devices[i].kobj, KOBJ_ADD);
+			kobject_uevent(kub_devices[i].kobj, KOBJ_ADD);
+
+			printk("Create %d kobj\n", i);
 		}
 		
 		if (i!=num_devs)
 		{
 			for (; i>=0; i--)
 			{
-				kobject_put(&kub_devices[i].kobj);
+				if (kub_devices[i].kobj) {
+					kobject_put(kub_devices[i].kobj);
+					kub_devices[i].kobj = NULL;
+				}
 			}
 			kset_unregister(kubinfo_kset);
 			kubinfo_kset = NULL;
@@ -724,7 +761,10 @@ static void __exit kubridge_exit(void)
 	{
 		for (i=0; i<num_devs; i++)
 		{
-			kobject_put(&kub_devices[i].kobj);
+			if (kub_devices[i].kobj) {
+				kobject_put(kub_devices[i].kobj);
+				kub_devices[i].kobj = NULL;
+			}
 		}
 		kset_unregister(kubinfo_kset);
 	}
