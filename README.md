@@ -40,10 +40,10 @@ kubridge usage:
 ```
 or
 ```
-$cat /sys/kernel/kub/info/0/usage
+$cat /sys/kernel/kub/info0/usage
 kubridge usage:
 [0] listen 10000 times, send 10000 tiems.
-$cat /sys/kernel/kub/info/1/usage
+$cat /sys/kernel/kub/info1/usage
 kubridge usage:
 [1] listen 1 times, send 2000 tiems.
 ```
