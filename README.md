@@ -38,6 +38,15 @@ kubridge usage:
 [2] listen 0 times, send  0 times
 [3] listen 0 times, send  0 times
 ```
+or
+```
+$cat /sys/kernel/kub/info/0/usage
+kubridge usage:
+[0] listen 10000 times, send 10000 tiems.
+$cat /sys/kernel/kub/info/1/usage
+kubridge usage:
+[1] listen 1 times, send 2000 tiems.
+```
 
 Uninstall the kernel module.
 ```sh
