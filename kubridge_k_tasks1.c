@@ -85,8 +85,8 @@ void task_event_handler(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, void
 	printk("[task%d] task_event_handler ready to gen %d data.\n", BRIDGE_IDX, cnt);
 
 	//task = kthread_create(&thread_function,(void *)cnt,"pradeep");
-   task0 = kthread_run(&thread_function0,(void *)cnt,"kb_task1_th0");
-   task1 = kthread_run(&thread_function1,(void *)cnt,"kb_task1_th0");
+   task0 = kthread_run(thread_function0,(void *)cnt,"kb_task1_th0");
+   task1 = kthread_run(thread_function1,(void *)cnt,"kb_task1_th0");
 	
 	printk("[task%d] task_event_handler done\n", BRIDGE_IDX);
 }
