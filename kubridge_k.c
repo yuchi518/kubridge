@@ -18,6 +18,7 @@
  */
 
 #include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/errno.h>	/* error codes */
 #include <linux/fcntl.h>	/* O_ACCMODE */
 #include <linux/fs.h>		/* alloc_chrdev_region, everything... */
@@ -34,6 +35,7 @@
 #include <linux/types.h>	/* size_t */
 #include <linux/version.h>
 #include <asm/uaccess.h>	/* copy_to_user, copy_from_user */
+#include <linux/interrupt.h>
 
 #include "kubridge.h"
 #include "uthash.h"
@@ -73,6 +75,7 @@ struct kub_event_send_info
 // dev
 struct kubridge_device {
 	struct cdev cdev;
+	struct device *node;			// point to /dev/name[0~N]
 	struct semaphore sem;
 	wait_queue_head_t in_q/*, out_q*/;       /* read and write queues in user viewpoint */
 	struct kub_event_listener_info *listeners;
@@ -85,13 +88,14 @@ struct kubridge_device {
 #endif
 };
 
+static struct class *kub_class;
 static struct kubridge_device *kub_devices=NULL;
 static int major=0;
 static int minor=0;
 static int num_devs=KUB_NUM_OF_BRIDGES; 
 module_param(major, int, 0);
 module_param(minor, int, 0);
-module_param(num_devs, int, S_IRUGO);
+module_param(num_devs, int, 0);
 
 /// ===================== 
 int kub_register_event_listener(int bridge, IOCtlCmd cmd/*, size_t sizeOfPayload*/, kub_event_handler listener)
@@ -318,6 +322,11 @@ void kub_release_send_events(struct kubridge_device *dev)
 }
 
 /// ===================== Device Driver implementation ============================
+static ssize_t kub_class_show(struct device *child, struct device_attribute *attr, char *buf)
+{
+    return sprintf(buf, DEV_NAME);
+}
+static DEVICE_ATTR(kub_class, 0444, kub_class_show, NULL);
 
 static int device_open(struct inode *inode, struct file *filp)
 {
@@ -647,6 +656,8 @@ static int __init kubridge_init(void)
 		return res;
 	}
 
+	kub_class = class_create(THIS_MODULE, DEV_NAME);
+
 	kub_devices = kzalloc(num_devs * sizeof(struct kubridge_device), GFP_KERNEL);
 	if (!kub_devices) {
 		res = -ENOMEM;
@@ -663,7 +674,12 @@ static int __init kubridge_init(void)
 		kub_devices[i].sends = NULL;
 		kub_devices[i].listen_cnt = 0;
 		kub_devices[i].send_cnt = 0;
-		res = setup_cdev(kub_devices+i, i);
+		if ((res = setup_cdev(kub_devices+i, i))==0)
+		{
+			kub_devices[i].node = device_create(kub_class, NULL, MKDEV(major, minor+i), NULL, DEV_NAME_FMT, i);
+			device_create_file(kub_devices[i].node, &dev_attr_kub_class);
+		}
+
 	}
 
 	if (res)
@@ -671,6 +687,7 @@ static int __init kubridge_init(void)
 		i--;		// i is fail, no need to del
 		for (; i>=0; i--)
 		{
+			device_remove_file(kub_devices[i].node, &dev_attr_kub_class);
 			cdev_del(&kub_devices[i].cdev);
 			kub_release_event_listeners(&kub_devices[i]);
 			kub_release_send_events(&kub_devices[i]);
@@ -777,11 +794,16 @@ static void __exit kubridge_exit(void)
 
 	// kubridge
 	for (i = 0; i < num_devs; i++) {
+		device_remove_file(kub_devices[i].node, &dev_attr_kub_class);
+		device_destroy(kub_class, MKDEV(major, minor+i));
 		cdev_del(&kub_devices[i].cdev);
 		kub_release_event_listeners(&kub_devices[i]);
 		kub_release_send_events(&kub_devices[i]);
 	}
 	kfree(kub_devices);
+
+	class_destroy(kub_class);
+
 	unregister_chrdev_region(MKDEV(major, minor), num_devs);
 }  
 

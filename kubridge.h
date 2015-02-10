@@ -30,6 +30,7 @@
 
 // DEV_NAME+DEV_NO ==> /dev/[dev_name][dev_no_start] is first dev name
 #define DEV_NAME					"kubridge"
+#define DEV_NAME_FMT				"kubridge%d"
 
 #define ENABLE_KUB_PROC			1
 #define ENABLE_KUB_SYSFS		1
