@@ -21,7 +21,7 @@
 #define _KUBRIDGE_H_
 
 #ifndef KUB_MAGIC					// You can change it in your makefile.
-#define KUB_MAGIC					((unsigned char)0xC9)
+#define KUB_MAGIC					((unsigned char)0xC9)			// ref: linux/Documentation/ioctl/ioctl-number.txt
 #endif
 
 #ifndef KUB_NUM_OF_BRIDGES

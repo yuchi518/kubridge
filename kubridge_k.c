@@ -20,7 +20,7 @@
 #include <linux/cdev.h>
 #include <linux/errno.h>	/* error codes */
 #include <linux/fcntl.h>	/* O_ACCMODE */
-#include <linux/fs.h>		/* everything... */
+#include <linux/fs.h>		/* alloc_chrdev_region, everything... */
 #include <linux/kernel.h>	/* printk() */
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -33,7 +33,7 @@
 #include <linux/semaphore.h> /* sem */
 #include <linux/types.h>	/* size_t */
 #include <linux/version.h>
-#include <asm/uaccess.h>
+#include <asm/uaccess.h>	/* copy_to_user, copy_from_user */
 
 #include "kubridge.h"
 #include "uthash.h"
